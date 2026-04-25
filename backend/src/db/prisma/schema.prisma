@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// generator client {
+//   provider = "prisma-client-js"
+// }
+
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+enum UserRole {
+  USER
+  RESTAURANT
+  ADMIN
+}
+
+enum FoodStatus {
+  AVAILABLE
+  RESERVED
+  CLAIMED
+  EXPIRED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum FoodCategory {
+  PREPARED_FOOD
+  RAW_INGREDIENTS
+  BAKERY
+  DAIRY
+  FRUITS_VEGETABLES
+  BEVERAGES
+  PACKAGED_FOOD
+  FROZEN_FOOD
+  OTHER
+}
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String
+  name       String
+  phone      String?
+  role       UserRole @default(USER)
+  address    String?
+  isVerified Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  foodRequests  FoodRequest[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Restaurant {
+  id              String   @id @default(uuid())
+  restaurantName  String
+  description     String?
+  address         String
+  latitude        Float?
+  longitude       Float?
+  phone           String
+  businessLicense String?
+  rating          Float    @default(0)
+  totalRatings    Int      @default(0)
+  isVerified      Boolean  @default(false)
+  email           String   @unique
+  password        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  foodListings            FoodListing[]
+  restaurantNotifications RestaurantNotification[]
+
+  @@map("restaurants")
+}
+
+model FoodListing {
+  id            String       @id @default(uuid())
+  restaurantId  String
+  title         String
+  description   String
+  quantity      Int
+  unit          String // kg, plates, servings, etc
+  expiryDate    DateTime
+  pickupTime    String // e.g., "5:00 PM - 8:00 PM"
+  status        FoodStatus   @default(AVAILABLE)
+  imageData     Bytes? // Binary image data stored in PostgreSQL BYTEA
+  imageMimeType String? // e.g., "image/jpeg", "image/png"
+  imageUrl      String? // Alternative to binary storage - URL to image
+  category      FoodCategory @default(OTHER)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // Relations
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  foodRequests FoodRequest[]
+
+  @@map("food_listings")
+}
+
+model FoodRequest {
+  id            String        @id @default(uuid())
+  userId        String
+  foodListingId String
+  quantity      Int
+  message       String?
+  status        RequestStatus @default(PENDING)
+  pickupDate    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodListing FoodListing @relation(fields: [foodListingId], references: [id], onDelete: Cascade)
+
+  @@map("food_requests")
+}
+
+enum NotificationType {
+  REQUEST_CREATED
+  REQUEST_APPROVED
+  REQUEST_REJECTED
+  REQUEST_CANCELLED
+  REQUEST_COMPLETED
+  NEW_FOOD_AVAILABLE
+  LISTING_EXPIRING_SOON
+  RESTAURANT_VERIFIED
+  RESTAURANT_UNVERIFIED
+  USER_VERIFIED
+  SYSTEM_ANNOUNCEMENT
+  NEW_USER_REGISTRATION
+  NEW_RESTAURANT_REGISTRATION
+  SYSTEM_ALERT
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  type      NotificationType
+  metadata  Json? // Additional data like requestId, foodListingId, etc
+  actionUrl String? // URL to navigate to when clicking notification
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model RestaurantNotification {
+  id           String           @id @default(uuid())
+  restaurantId String
+  title        String
+  message      String
+  isRead       Boolean          @default(false)
+  type         NotificationType
+  metadata     Json? // Additional data like requestId, foodListingId, userId
+  actionUrl    String? // URL to navigate to when clicking notification
+  createdAt    DateTime         @default(now())
+
+  // Relations
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, isRead])
+  @@index([restaurantId, createdAt])
+  @@map("restaurant_notifications")
+}
